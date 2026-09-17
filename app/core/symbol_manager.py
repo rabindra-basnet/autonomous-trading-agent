@@ -1,9 +1,9 @@
 """Dynamic Symbol Management & Registry for active trading pairs."""
 
-import asyncio
-from typing import List, Set, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, Field
+
 from app.config import settings
 from app.core.logging import get_logger
 
@@ -15,20 +15,20 @@ class SymbolInfo(BaseModel):
     base_asset: str
     quote_asset: str
     active: bool = True
-    added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    added_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class SymbolManager:
     """Thread-safe dynamic manager for actively tracked and traded asset pairs."""
 
-    def __init__(self, initial_symbols: Optional[List[str]] = None):
-        self._symbols: Set[str] = set()
+    def __init__(self, initial_symbols: list[str] | None = None):
+        self._symbols: set[str] = set()
         raw_list = initial_symbols or settings.symbols
         for s in raw_list:
             norm = self._normalize(s)
             if norm:
                 self._symbols.add(norm)
-        logger.info(f"SymbolManager initialized with {len(self._symbols)} active pairs: {sorted(list(self._symbols))}")
+        logger.info(f"SymbolManager initialized with {len(self._symbols)} active pairs: {sorted(self._symbols)}")
 
     @staticmethod
     def _normalize(symbol: str) -> str:
@@ -41,11 +41,11 @@ class SymbolManager:
                 return f"{s[:-3]}/USD"
         return s
 
-    def get_active_symbols(self) -> List[str]:
+    def get_active_symbols(self) -> list[str]:
         """Return list of currently active symbols sorted alphabetically."""
-        return sorted(list(self._symbols))
+        return sorted(self._symbols)
 
-    def get_symbol_details(self) -> List[SymbolInfo]:
+    def get_symbol_details(self) -> list[SymbolInfo]:
         """Return detailed info for all active symbols."""
         details = []
         for s in self.get_active_symbols():
@@ -72,7 +72,7 @@ class SymbolManager:
             logger.info(f"Dynamically added symbol to active registry: {norm}")
         return norm
 
-    def add_symbols(self, symbols: List[str]) -> List[str]:
+    def add_symbols(self, symbols: list[str]) -> list[str]:
         """Add multiple symbols at once."""
         added = []
         for s in symbols:

@@ -1,6 +1,5 @@
 """Tests for dynamic SymbolManager registry and normalization."""
 
-import pytest
 from app.core.symbol_manager import SymbolManager
 
 
