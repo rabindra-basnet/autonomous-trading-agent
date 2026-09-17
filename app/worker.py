@@ -23,15 +23,14 @@ from app.ingestion.market.simulated import SimulatedMarketDataProvider
 from app.ingestion.news.simulated import SimulatedNewsProvider
 from app.ingestion.social.simulated import SimulatedSocialProvider
 from app.ingestion.macro.simulated import SimulatedMacroProvider
-from app.ingestion.onchain.simulated import SimulatedOnChainProvider
+from app.core.logging import get_logger
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("BackgroundWorker")
+logger = get_logger("BackgroundWorker")
 
 
 class BackgroundWorkerDaemon:
-    def __init__(self):
-        self.symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    def __init__(self, symbols: Optional[List[str]] = None):
+        self.symbols = symbols or settings.symbols
         self.postgres_storage = PostgresStorage()
         self.duckdb_storage = TimeSeriesDatabase(db_path=settings.duckdb_path)
         self.feature_store = PointInTimeFeatureStore()

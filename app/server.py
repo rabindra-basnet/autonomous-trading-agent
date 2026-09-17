@@ -29,8 +29,9 @@ from app.features.charting import ChartGenerator
 from app.ingestion.market.simulated import SimulatedMarketDataProvider
 from app.ingestion.news.simulated import SimulatedNewsProvider
 from app.ingestion.social.simulated import SimulatedSocialProvider
-from app.ingestion.macro.simulated import SimulatedMacroProvider
-from app.ingestion.onchain.simulated import SimulatedOnChainProvider
+from app.core.logging import get_logger
+
+logger = get_logger("BackendServer")
 
 # Core system state
 postgres_storage = PostgresStorage()
@@ -42,8 +43,8 @@ oms = OrderManagementSystem()
 paper_trader = PaperTradingEngine(initial_cash=100000.0)
 event_bus = RedisStreamEventBus()
 
-# In-memory streaming state
-symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+# In-memory streaming state driven by dynamic settings
+symbols = settings.symbols
 candle_buffers: Dict[str, List[Candle]] = {s: [] for s in symbols}
 active_strategies = [
     MomentumTrendStrategy(symbols=symbols),

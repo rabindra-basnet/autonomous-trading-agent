@@ -27,26 +27,26 @@ from app.storage.feature_store import PointInTimeFeatureStore
 from app.features.pipeline import FeaturePipeline
 from app.execution.risk_manager import RiskManager
 from app.execution.oms import OrderManagementSystem
-from app.execution.paper_trader import PaperTradingEngine
-from app.strategies.base import BaseStrategy
+from app.config import settings
+from app.core.logging import get_logger
 
-logger = logging.getLogger("TradingPipeline")
+logger = get_logger("TradingPipeline")
 
 
 class TradingSystemPipeline:
     def __init__(
         self,
-        symbols: List[str],
-        market_provider: BaseMarketDataProvider,
-        news_provider: BaseNewsProvider,
-        social_provider: BaseSocialProvider,
-        macro_provider: BaseMacroProvider,
-        onchain_provider: BaseOnChainProvider,
-        strategies: List[BaseStrategy],
+        symbols: Optional[List[str]] = None,
+        market_provider: Optional[BaseMarketDataProvider] = None,
+        news_provider: Optional[BaseNewsProvider] = None,
+        social_provider: Optional[BaseSocialProvider] = None,
+        macro_provider: Optional[BaseMacroProvider] = None,
+        onchain_provider: Optional[BaseOnChainProvider] = None,
+        strategies: Optional[List[BaseStrategy]] = None,
         db_path: str = "data/trading_agent.duckdb",
         initial_capital: float = 100000.0,
     ):
-        self.symbols = symbols
+        self.symbols = symbols or settings.symbols
         self.market_provider = market_provider
         self.news_provider = news_provider
         self.social_provider = social_provider
