@@ -24,6 +24,8 @@ from app.strategies.sentiment_momentum import SentimentMomentumStrategy
 from app.research.researcher import AutonomousResearcher
 from app.research.backtest import BacktestEngine
 from app.research.multi_agent import MultiAgentTradingDesk, MultiAgentConsensus
+from app.research.agent_graph import TradingWorkflowGraph, TradingState
+from app.features.charting import ChartGenerator
 from app.ingestion.market.simulated import SimulatedMarketDataProvider
 from app.ingestion.news.simulated import SimulatedNewsProvider
 from app.ingestion.social.simulated import SimulatedSocialProvider
@@ -242,6 +244,49 @@ async def get_multi_agent_consensus(symbol: str = "BTC/USDT"):
         "current_price": candle_buffers[symbol][-1].close if candle_buffers[symbol] else 0.0,
     }
     return await desk.evaluate_market(market_context)
+
+
+@app.get("/api/graphs/workflow", response_model=TradingState)
+async def execute_multi_agent_graph(symbol: str = "BTC/USDT"):
+    """Execute the multi-agent StateGraph workflow and return state trace."""
+    workflow = TradingWorkflowGraph()
+    latest_feat = feature_store.get_latest_features(symbol)
+    price = candle_buffers[symbol][-1].close if candle_buffers[symbol] else 0.0
+    return await workflow.execute_graph(symbol, price, latest_feat.features if latest_feat else {})
+
+
+@app.get("/api/graphs/candles")
+async def get_candle_chart_data(symbol: str = "BTC/USDT"):
+    """Return OHLCV data formatted for frontend candlestick charts."""
+    candles = candle_buffers.get(symbol, [])
+    return ChartGenerator.generate_candle_chart_data(candles)
+
+
+@app.get("/api/graphs/equity")
+async def get_equity_chart(symbol: str = "BTC/USDT", days: int = 30):
+    """Return equity curve data and base64 rendered PNG chart."""
+    market_prov = SimulatedMarketDataProvider(seed=42)
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+    candles = await market_prov.fetch_historical_candles(symbol, "1h", start, end)
+
+    strat = SentimentMomentumStrategy(symbols=[symbol])
+    engine = BacktestEngine(initial_capital=100000.0)
+    result = engine.run(strat, symbol, candles)
+
+    curve_data = ChartGenerator.generate_equity_curve_data(result.equity_curve)
+    image_b64 = ChartGenerator.render_equity_chart_image(result)
+
+    return {
+        "metrics": {
+            "total_return_pct": result.total_return_pct,
+            "sharpe_ratio": result.sharpe_ratio,
+            "max_drawdown_pct": result.max_drawdown_pct,
+            "win_rate_pct": result.win_rate_pct,
+        },
+        "chart_data": curve_data,
+        "chart_image_base64": image_b64,
+    }
 
 
 @app.websocket("/ws/live")
