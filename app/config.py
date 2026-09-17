@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "AutoQuant-AI-Backend"
     environment: str = "production"
     api_host: str = "0.0.0.0"
-    api_port: int = 8000
+    api_port: int = Field(default=8000, validation_alias="PORT")
     log_level: str = "INFO"
 
     # PostgreSQL (Neon)
