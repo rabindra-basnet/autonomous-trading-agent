@@ -23,6 +23,7 @@ from app.strategies.momentum import MomentumTrendStrategy
 from app.strategies.sentiment_momentum import SentimentMomentumStrategy
 from app.research.researcher import AutonomousResearcher
 from app.research.backtest import BacktestEngine
+from app.research.multi_agent import MultiAgentTradingDesk, MultiAgentConsensus
 from app.ingestion.market.simulated import SimulatedMarketDataProvider
 from app.ingestion.news.simulated import SimulatedNewsProvider
 from app.ingestion.social.simulated import SimulatedSocialProvider
@@ -229,6 +230,18 @@ async def run_research_loop(symbol: str = "BTC/USDT", background_tasks: Backgrou
         asyncio.create_task(_research_task())
 
     return {"message": "AI Research & Strategy Evolution cycle started in background."}
+
+
+@app.get("/api/agents/consensus", response_model=MultiAgentConsensus)
+async def get_multi_agent_consensus(symbol: str = "BTC/USDT"):
+    desk = MultiAgentTradingDesk()
+    latest_feat = feature_store.get_latest_features(symbol)
+    market_context = {
+        "symbol": symbol,
+        "features": latest_feat.features if latest_feat else {},
+        "current_price": candle_buffers[symbol][-1].close if candle_buffers[symbol] else 0.0,
+    }
+    return await desk.evaluate_market(market_context)
 
 
 @app.websocket("/ws/live")
