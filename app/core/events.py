@@ -30,9 +30,10 @@ class EventTopic(str, Enum):
     PORTFOLIO_UPDATED = "portfolio.updated"
     RISK_BREACH = "risk.breach"
 
-    # Research
+    # Research & Management
     RESEARCH_HYPOTHESIS = "research.hypothesis"
     EXPERIMENT_COMPLETED = "research.experiment_completed"
+    SYMBOLS_UPDATED = "symbols.updated"
 
 
 class Event(BaseModel):

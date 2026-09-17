@@ -27,13 +27,13 @@ from app.research.multi_agent import MultiAgentTradingDesk, MultiAgentConsensus
 from app.research.agent_graph import TradingWorkflowGraph, TradingState
 from app.features.charting import ChartGenerator
 from app.ingestion.market.simulated import SimulatedMarketDataProvider
-from app.ingestion.news.simulated import SimulatedNewsProvider
-from app.ingestion.social.simulated import SimulatedSocialProvider
+from app.core.symbol_manager import SymbolManager, SymbolInfo
 from app.core.logging import get_logger
 
 logger = get_logger("BackendServer")
 
 # Core system state
+symbol_manager = SymbolManager()
 postgres_storage = PostgresStorage()
 duckdb_storage = TimeSeriesDatabase(db_path=settings.duckdb_path)
 feature_store = PointInTimeFeatureStore()
@@ -43,12 +43,11 @@ oms = OrderManagementSystem()
 paper_trader = PaperTradingEngine(initial_cash=100000.0)
 event_bus = RedisStreamEventBus()
 
-# In-memory streaming state driven by dynamic settings
-symbols = settings.symbols
-candle_buffers: Dict[str, List[Candle]] = {s: [] for s in symbols}
+# In-memory streaming state driven by dynamic SymbolManager
+candle_buffers: Dict[str, List[Candle]] = {s: [] for s in symbol_manager.get_active_symbols()}
 active_strategies = [
-    MomentumTrendStrategy(symbols=symbols),
-    SentimentMomentumStrategy(symbols=symbols),
+    MomentumTrendStrategy(symbols=symbol_manager.get_active_symbols()),
+    SentimentMomentumStrategy(symbols=symbol_manager.get_active_symbols()),
 ]
 
 active_websockets: List[WebSocket] = []
@@ -72,13 +71,16 @@ async def background_ingestion_and_trading_loop():
 
     while True:
         try:
-            # 1. Fetch & normalize multi-source feeds
+            current_symbols = symbol_manager.get_active_symbols()
             now = datetime.now(timezone.utc)
             news = await news_prov.fetch_latest_news(limit=5)
-            social = await social_prov.fetch_metrics(symbols)
+            social = await social_prov.fetch_metrics(current_symbols)
             macro = await macro_prov.fetch_indicator("FEDFUNDS", now - timedelta(days=30))
-            
-            for sym in symbols:
+
+            for sym in current_symbols:
+                if sym not in candle_buffers:
+                    candle_buffers[sym] = []
+
                 price = await market_prov.fetch_ticker_price(sym)
                 candle = Candle(
                     symbol=sym,
@@ -108,10 +110,11 @@ async def background_ingestion_and_trading_loop():
                 feature_store.put_features(feat_vec)
 
                 # 4. Evaluate Strategies
-                current_prices = {s: candle_buffers[s][-1].close for s in symbols if candle_buffers[s]}
+                current_prices = {s: candle_buffers[s][-1].close for s in current_symbols if candle_buffers.get(s)}
                 portfolio = paper_trader.get_portfolio_state(current_prices)
 
                 for strat in active_strategies:
+                    strat.symbols = current_symbols
                     signals = strat.generate_signals(feat_vec, portfolio)
                     for sig in signals:
                         # 5. Pre-Trade Risk Gate
@@ -180,9 +183,55 @@ async def health():
     }
 
 
+class AddSymbolsRequest(BaseModel):
+    symbols: List[str]
+
+
+@app.get("/api/symbols", response_model=List[SymbolInfo])
+async def get_active_symbols():
+    """Retrieve all actively tracked and traded asset pairs."""
+    return symbol_manager.get_symbol_details()
+
+
+@app.post("/api/symbols")
+async def add_trading_symbols(req: AddSymbolsRequest):
+    """Dynamically register new trading pairs to the multi-agent system."""
+    added = symbol_manager.add_symbols(req.symbols)
+    # Broadcast dynamic symbol update to all connected WebSocket clients & event bus
+    await broadcast_ws({
+        "type": "symbols_updated",
+        "action": "added",
+        "active_symbols": symbol_manager.get_active_symbols(),
+    })
+    return {
+        "message": f"Successfully registered {len(added)} symbol(s).",
+        "added_symbols": added,
+        "active_symbols": symbol_manager.get_active_symbols(),
+    }
+
+
+@app.delete("/api/symbols/{symbol:path}")
+async def remove_trading_symbol(symbol: str):
+    """Deactivate and remove a trading pair from active ingestion and trading."""
+    removed = symbol_manager.remove_symbol(symbol)
+    if not removed:
+        return {"message": f"Symbol '{symbol}' was not in the active registry.", "active_symbols": symbol_manager.get_active_symbols()}
+
+    await broadcast_ws({
+        "type": "symbols_updated",
+        "action": "removed",
+        "active_symbols": symbol_manager.get_active_symbols(),
+    })
+    return {
+        "message": f"Successfully removed '{symbol}' from active trading.",
+        "active_symbols": symbol_manager.get_active_symbols(),
+    }
+
+
 @app.get("/api/portfolio")
 async def get_portfolio():
-    prices = {s: candle_buffers[s][-1].close for s in symbols if candle_buffers[s]}
+    current_symbols = symbol_manager.get_active_symbols()
+    prices = {s: candle_buffers[s][-1].close for s in current_symbols if candle_buffers.get(s)}
     return paper_trader.get_portfolio_state(prices).model_dump(mode="json")
 
 
