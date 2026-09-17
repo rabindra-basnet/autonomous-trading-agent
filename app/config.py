@@ -32,5 +32,10 @@ class Settings(BaseSettings):
     )
     event_bus_mode: str = Field(default="redis_streams", alias="EVENT_BUS")
 
+    # Universal OpenAI-Compatible LLM API Configuration
+    llm_base_url: str = Field(default="https://api.groq.com/openai/v1", alias="OPENAI_BASE_URL")
+    llm_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    llm_model: str = Field(default="llama-3.3-70b-versatile", alias="OPENAI_MODEL")
+
 
 settings = Settings()

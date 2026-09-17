@@ -17,7 +17,7 @@ from app.strategies.momentum import MomentumTrendStrategy
 from app.strategies.sentiment_momentum import SentimentMomentumStrategy
 from app.research.optimizer import StrategyOptimizer
 from app.research.backtest import BacktestEngine
-from app.research.llm_client import FreeLLMClient
+from app.research.llm_client import OpenAICompatibleLLMClient
 
 logger = logging.getLogger("AIResearcher")
 
@@ -27,7 +27,7 @@ class AutonomousResearcher:
         self.registry = registry or StrategyRegistry()
         self.backtester = BacktestEngine()
         self.optimizer = StrategyOptimizer(self.backtester)
-        self.llm_client = FreeLLMClient()
+        self.llm_client = OpenAICompatibleLLMClient()
 
     async def generate_hypotheses(self, market_context: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
         """AI Hypothesis generator proposing quantitative edge ideas via Free LLMs (Gemini/Groq/Ollama)."""
