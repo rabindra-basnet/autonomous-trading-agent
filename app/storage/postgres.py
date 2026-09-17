@@ -1,5 +1,7 @@
-"""PostgreSQL async relational storage for transactions, orders, and experiment registry."""
+"""PostgreSQL async relational storage for transactions, orders, and experiment registry with SSL support."""
 
+import ssl
+import urllib.parse
 from datetime import datetime, timezone
 import logging
 from typing import Optional, List, Dict, Any
@@ -14,7 +16,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base, selectinload
+from sqlalchemy.orm import declarative_base
 from sqlalchemy import select, update
 from app.config import settings
 from app.core.models import Order, Position, ExperimentRecord
@@ -73,16 +75,46 @@ class DBExperiment(Base):
     notes = Column(Text, default="")
 
 
+def sanitize_asyncpg_url(raw_url: str) -> tuple[str, dict]:
+    """
+    Sanitize Neon/Postgres connection URLs for asyncpg driver.
+    Converts sslmode / channel_binding into valid asyncpg SSL context.
+    """
+    parsed = urllib.parse.urlparse(raw_url)
+    query_params = urllib.parse.parse_qs(parsed.query)
+
+    connect_args: Dict[str, Any] = {}
+    if "sslmode" in query_params or "ssl" in query_params or "require" in raw_url:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ssl_ctx
+
+    # Strip asyncpg-incompatible query parameters from URL
+    incompatible = {"sslmode", "channel_binding", "ssl"}
+    filtered_query = {k: v for k, v in query_params.items() if k not in incompatible}
+    new_query = urllib.parse.urlencode(filtered_query, doseq=True)
+    clean_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+
+    return clean_url, connect_args
+
+
 class PostgresStorage:
     def __init__(self):
-        self.engine = create_async_engine(settings.database_url, echo=False)
+        clean_url, connect_args = sanitize_asyncpg_url(settings.database_url)
+        self.engine = create_async_engine(
+            clean_url,
+            connect_args=connect_args,
+            echo=False,
+            pool_pre_ping=True,
+        )
         self.session_maker = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def init_db(self):
         try:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            logger.info("PostgreSQL database tables verified and created.")
+            logger.info("PostgreSQL database tables verified and created successfully.")
         except Exception as e:
             logger.error(f"Error initializing PostgreSQL tables: {e}")
 
