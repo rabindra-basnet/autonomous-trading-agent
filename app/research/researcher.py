@@ -17,6 +17,7 @@ from app.strategies.momentum import MomentumTrendStrategy
 from app.strategies.sentiment_momentum import SentimentMomentumStrategy
 from app.research.optimizer import StrategyOptimizer
 from app.research.backtest import BacktestEngine
+from app.research.llm_client import FreeLLMClient
 
 logger = logging.getLogger("AIResearcher")
 
@@ -26,27 +27,34 @@ class AutonomousResearcher:
         self.registry = registry or StrategyRegistry()
         self.backtester = BacktestEngine()
         self.optimizer = StrategyOptimizer(self.backtester)
+        self.llm_client = FreeLLMClient()
 
-    async def generate_hypotheses(self) -> List[Dict[str, Any]]:
-        """AI Hypothesis generator proposing quantitative edge ideas."""
-        return [
-            {
-                "hypothesis": "Fusing Reddit mention velocity with EMA momentum reduces false breakout whipsaws in crypto.",
-                "strategy_cls": SentimentMomentumStrategy,
-                "param_grid": {
-                    "min_sentiment_threshold": [0.10, 0.20, 0.30],
-                    "macro_risk_off_filter": [True, False],
-                },
-            },
-            {
-                "hypothesis": "Adaptive RSI bounds (30/70 vs 38/62) combined with MACD momentum improve risk-adjusted Sharpe.",
-                "strategy_cls": MomentumTrendStrategy,
-                "param_grid": {
-                    "rsi_oversold": [30.0, 38.0],
-                    "rsi_overbought": [62.0, 70.0],
-                },
-            },
-        ]
+    async def generate_hypotheses(self, market_context: Dict[str, Any] | None = None) -> List[Dict[str, Any]]:
+        """AI Hypothesis generator proposing quantitative edge ideas via Free LLMs (Gemini/Groq/Ollama)."""
+        ctx = market_context or {
+            "current_regime": "crypto_volatility_expansion",
+            "active_assets": ["BTC/USDT", "ETH/USDT", "SOL/USDT"],
+            "macro_condition": "FED_rate_steady",
+        }
+        raw_hypotheses = await self.llm_client.generate_hypotheses(ctx)
+
+        # Map strategy names to classes
+        strat_map = {
+            "sentiment_momentum": SentimentMomentumStrategy,
+            "momentum_trend": MomentumTrendStrategy,
+        }
+
+        formatted = []
+        for h in raw_hypotheses:
+            s_name = h.get("strategy_name", "sentiment_momentum")
+            s_cls = strat_map.get(s_name, SentimentMomentumStrategy)
+            formatted.append({
+                "hypothesis": h.get("hypothesis", ""),
+                "strategy_cls": s_cls,
+                "param_grid": h.get("param_grid", {}),
+            })
+
+        return formatted
 
     async def run_experiment_loop(
         self,
@@ -57,9 +65,19 @@ class AutonomousResearcher:
         macro: Sequence[MacroIndicator] = (),
         onchain: Sequence[OnChainMetric] = (),
     ) -> List[ExperimentRecord]:
-        """Execute autonomous research cycle: hypothesize -> optimize -> walk-forward validate -> promote."""
-        logger.info("Starting Autonomous AI Research & Self-Improvement Loop...")
-        hypotheses = await self.generate_hypotheses()
+        """Execute autonomous research cycle: hypothesize (LLM) -> optimize -> walk-forward validate -> promote."""
+        logger.info("Starting Autonomous AI Research & Self-Improvement Loop with Free LLM Reasoning...")
+        
+        market_context = {
+            "symbol": symbol,
+            "candle_count": len(candles),
+            "start_price": candles[0].close if candles else 0,
+            "end_price": candles[-1].close if candles else 0,
+            "news_count": len(news),
+            "social_count": len(social),
+        }
+
+        hypotheses = await self.generate_hypotheses(market_context)
         records: List[ExperimentRecord] = []
 
         for h in hypotheses:
@@ -67,7 +85,7 @@ class AutonomousResearcher:
             strat_cls = h["strategy_cls"]
             grid = h["param_grid"]
 
-            logger.info(f"Evaluating Hypothesis: {desc}")
+            logger.info(f"Evaluating LLM Hypothesis: {desc}")
             wf_res = self.optimizer.walk_forward_validation(
                 strategy_cls=strat_cls,
                 symbol=symbol,
