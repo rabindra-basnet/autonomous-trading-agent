@@ -25,6 +25,8 @@ dependencies = [
     "redis>=5.0.0",
     "sqlalchemy>=2.0.0",
     "asyncpg>=0.29.0",
+    "arq>=0.28.0",
+    "openai>=3.14.1",
 ]
 
 [project.optional-dependencies]
@@ -45,7 +47,6 @@ packages = ["app"]
 [tool.hatch.build.targets.sdist]
 include = [
     "/app",
-    "/configs",
     "/tests",
     "/README.md",
     "/pyproject.toml",
@@ -71,3 +72,15 @@ ignore_missing_imports = true
 [tool.ruff]
 src = [".", "app"]
 line-length = 120
+
+[tool.ruff.lint]
+# The IO/resilience layer intentionally uses defensive patterns:
+# - BLE001: per-provider failures are caught and logged instead of crashing the loop.
+# - S110: silent teardown / idempotent setup (e.g. consumer-group already exists).
+# - TRY401: `logger.exception` already embeds the traceback; extra {e} is cosmetic.
+ignore = ["BLE001", "S110", "TRY401"]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+]

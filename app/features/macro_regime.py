@@ -1,18 +1,14 @@
 """Macroeconomic regime and On-chain feature computation."""
 
-from typing import Sequence, Dict
+from collections.abc import Sequence
+
 from app.core.models import MacroIndicator, OnChainMetric
 
 
 class MacroOnChainFeatures:
     @classmethod
-    def compute_macro_features(cls, macro: Sequence[MacroIndicator]) -> Dict[str, float]:
-        features: Dict[str, float] = {
-            "fedfunds_rate": 4.50,
-            "yield_spread_10y2y": 0.20,
-            "cpi_yoy": 2.80,
-            "macro_risk_on": 1.0,  # 1.0 = Risk-on, 0.0 = Risk-off
-        }
+    def compute_macro_features(cls, macro: Sequence[MacroIndicator]) -> dict[str, float]:
+        features: dict[str, float] = {}
         for m in macro:
             if "FEDFUNDS" in m.series_id:
                 features["fedfunds_rate"] = float(m.value)
@@ -21,22 +17,18 @@ class MacroOnChainFeatures:
             elif "CPI" in m.series_id:
                 features["cpi_yoy"] = float(m.value)
 
-        # Inverted yield curve or high rates trigger risk-off
-        if features["yield_spread_10y2y"] < 0 or features["fedfunds_rate"] > 5.5:
-            features["macro_risk_on"] = 0.0
+        # Risk-on/off only computed from actually-fetched rates; never fabricated.
+        if "fedfunds_rate" in features and "yield_spread_10y2y" in features:
+            inverted_yield = features["yield_spread_10y2y"] < 0
+            features["macro_risk_on"] = 0.0 if inverted_yield or features["fedfunds_rate"] > 5.5 else 1.0
 
         return features
 
     @classmethod
-    def compute_onchain_features(cls, symbol: str, onchain: Sequence[OnChainMetric]) -> Dict[str, float]:
+    def compute_onchain_features(cls, symbol: str, onchain: Sequence[OnChainMetric]) -> dict[str, float]:
         rel = [o for o in onchain if o.symbol == symbol]
         if not rel:
-            return {
-                "onchain_tvl_usd": 0.0,
-                "onchain_active_addresses": 0.0,
-                "onchain_net_inflows_usd": 0.0,
-                "onchain_whale_tx_count": 0.0,
-            }
+            return {}
 
         latest = rel[-1]
         return {

@@ -1,7 +1,8 @@
 """Base class for On-Chain Data Providers."""
 
 from abc import ABC, abstractmethod
-from typing import Sequence
+from collections.abc import Sequence
+
 from app.core.models import OnChainMetric
 
 
@@ -12,4 +13,3 @@ class BaseOnChainProvider(ABC):
     @abstractmethod
     async def fetch_metrics(self, symbol: str) -> Sequence[OnChainMetric]:
         """Fetch on-chain metrics for symbol/protocol."""
-        pass

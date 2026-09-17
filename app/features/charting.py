@@ -1,19 +1,22 @@
 """Visual and structured Graph/Chart generation engine for quantitative analytics."""
 
-import io
 import base64
-from typing import List, Dict, Any, Sequence, Optional
+import io
+import logging
+from collections.abc import Sequence
 from datetime import datetime
-import numpy as np
+from typing import Any
 
-from app.core.models import Candle, BacktestResult
+from app.core.models import BacktestResult, Candle
+
+logger = logging.getLogger("ChartGenerator")
 
 
 class ChartGenerator:
     """Generates visual and structured graphs for equity curves, technical indicators, and multi-modal signals."""
 
     @staticmethod
-    def generate_equity_curve_data(equity_curve: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def generate_equity_curve_data(equity_curve: list[dict[str, Any]]) -> dict[str, Any]:
         """Format equity curve points for TradingView / Chart.js / Frontend graphs."""
         labels = [e["timestamp"] for e in equity_curve]
         equities = [e["equity"] for e in equity_curve]
@@ -28,18 +31,20 @@ class ChartGenerator:
         }
 
     @staticmethod
-    def generate_candle_chart_data(candles: Sequence[Candle]) -> List[Dict[str, Any]]:
+    def generate_candle_chart_data(candles: Sequence[Candle]) -> list[dict[str, Any]]:
         """Format OHLCV candles with indicator overlays for charting libraries."""
         data = []
         for c in candles:
-            data.append({
-                "time": int(c.timestamp.timestamp()),
-                "open": c.open,
-                "high": c.high,
-                "low": c.low,
-                "close": c.close,
-                "volume": c.volume,
-            })
+            data.append(
+                {
+                    "time": int(c.timestamp.timestamp()),
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume,
+                }
+            )
         return data
 
     @staticmethod
@@ -47,6 +52,7 @@ class ChartGenerator:
         """Render a base64 encoded PNG chart of the strategy equity curve and drawdown."""
         try:
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
 
@@ -58,13 +64,15 @@ class ChartGenerator:
             equities = [e["equity"] for e in equity_data]
             drawdowns = [e.get("drawdown_pct", 0.0) * -100.0 for e in equity_data]
 
-            fig, (ax1, ax2) = plt.subplots(
-                2, 1, figsize=(10, 6), sharex=True, gridspec_kw={"height_ratios": [3, 1]}
-            )
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True, gridspec_kw={"height_ratios": [3, 1]})
 
             # Equity Curve
             ax1.plot(times, equities, label="Portfolio Equity ($)", color="#00ff88", linewidth=1.5)
-            ax1.set_title(f"Strategy Equity Curve - {backtest_result.strategy_name} ({backtest_result.symbol})", fontsize=12, fontweight="bold")
+            ax1.set_title(
+                f"Strategy Equity Curve - {backtest_result.strategy_name} ({backtest_result.symbol})",
+                fontsize=12,
+                fontweight="bold",
+            )
             ax1.set_ylabel("Equity ($)")
             ax1.grid(True, linestyle="--", alpha=0.3)
             ax1.legend(loc="upper left")
@@ -82,5 +90,6 @@ class ChartGenerator:
             plt.close(fig)
             buf.seek(0)
             return base64.b64encode(buf.read()).decode("utf-8")
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to render equity chart image: %s", e)
             return ""

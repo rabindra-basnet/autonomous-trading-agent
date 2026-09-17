@@ -3,7 +3,9 @@
 import asyncio
 import fnmatch
 import logging
-from typing import Callable, Coroutine, Dict, List, Any
+from collections.abc import Callable, Coroutine
+from typing import Any
+
 from app.core.events import Event
 
 logger = logging.getLogger("EventBus")
@@ -13,7 +15,7 @@ HandlerType = Callable[[Event], Coroutine[Any, Any, None]]
 
 class EventBus:
     def __init__(self, max_queue_size: int = 10000):
-        self._subscribers: Dict[str, List[HandlerType]] = {}
+        self._subscribers: dict[str, list[HandlerType]] = {}
         self._queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=max_queue_size)
         self._running: bool = False
         self._worker_task: asyncio.Task | None = None
@@ -60,14 +62,13 @@ class EventBus:
     async def _worker_loop(self) -> None:
         logger.info("EventBus worker loop started.")
         while self._running:
+            event = await self._queue.get()
             try:
-                event = await self._queue.get()
                 await self._dispatch_event(event)
+            except Exception:
+                logger.exception("Unexpected error in EventBus dispatch")
+            finally:
                 self._queue.task_done()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.exception(f"Unexpected error in EventBus dispatch: {e}")
 
     async def start(self) -> None:
         if not self._running:

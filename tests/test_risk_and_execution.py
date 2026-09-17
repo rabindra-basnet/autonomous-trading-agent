@@ -1,12 +1,13 @@
 """Tests for risk management, OMS, and paper trading."""
 
+from datetime import UTC, datetime
+
 import pytest
-import asyncio
-from datetime import datetime, timezone
-from app.core.models import TradingSignal, SignalType, OrderType, OrderSide
-from app.execution.risk_manager import RiskManager
+
+from app.core.models import OrderSide, SignalType, TradingSignal
 from app.execution.oms import OrderManagementSystem
 from app.execution.paper_trader import PaperTradingEngine
+from app.execution.risk_manager import RiskManager
 
 
 @pytest.mark.asyncio
@@ -21,7 +22,7 @@ async def test_risk_manager_and_paper_trader():
     state = paper_trader.get_portfolio_state({"BTC/USDT": 50000.0})
     signal = TradingSignal(
         symbol="BTC/USDT",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         strategy_name="test_strat",
         signal_type=SignalType.LONG,
         strength=1.0,

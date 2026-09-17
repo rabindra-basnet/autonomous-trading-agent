@@ -1,11 +1,12 @@
 """Pre-trade risk management, position sizing, and circuit breakers."""
 
 import logging
+
 from app.core.models import (
-    TradingSignal,
     PortfolioState,
     RiskCheckResult,
     SignalType,
+    TradingSignal,
 )
 
 logger = logging.getLogger("RiskManager")
@@ -32,7 +33,7 @@ class RiskManager:
         """Verify if overall portfolio is healthy or if circuit breaker has tripped."""
         if portfolio.drawdown_pct >= self.max_drawdown_limit_pct:
             logger.critical(
-                f"CIRCUIT BREAKER TRIGGERED! Drawdown {portfolio.drawdown_pct*100:.2f}% exceeds limit {self.max_drawdown_limit_pct*100:.2f}%"
+                f"CIRCUIT BREAKER TRIGGERED! Drawdown {portfolio.drawdown_pct * 100:.2f}% exceeds limit {self.max_drawdown_limit_pct * 100:.2f}%"
             )
             return False
         return True
@@ -66,9 +67,7 @@ class RiskManager:
             return RiskCheckResult(approved=True, adjusted_size=current_pos.size)
 
         # Total portfolio allocated
-        current_allocated_usd = sum(
-            p.size * p.current_price for p in portfolio.positions.values()
-        )
+        current_allocated_usd = sum(p.size * p.current_price for p in portfolio.positions.values())
         total_equity = portfolio.total_equity
 
         if total_equity <= 0:
@@ -83,7 +82,7 @@ class RiskManager:
             return RiskCheckResult(
                 approved=False,
                 adjusted_size=0.0,
-                rejection_reason=f"Max portfolio exposure reached ({exposure_pct*100:.1f}% >= {self.max_portfolio_exposure_pct*100:.1f}%)",
+                rejection_reason=f"Max portfolio exposure reached ({exposure_pct * 100:.1f}% >= {self.max_portfolio_exposure_pct * 100:.1f}%)",
             )
 
         # Sizing calculation

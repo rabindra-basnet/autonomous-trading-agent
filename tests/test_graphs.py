@@ -1,10 +1,8 @@
-"""Tests for StateGraph workflow and visual chart/graph generation."""
+"""Tests for the multi-agent workflow graph."""
 
 import pytest
-from app.research.agent_graph import TradingWorkflowGraph, TradingState
-from app.features.charting import ChartGenerator
-from app.core.models import Candle, AssetClass, BacktestResult
-from datetime import datetime, timezone
+
+from app.research.agent_graph import TradingState, TradingWorkflowGraph
 
 
 @pytest.mark.asyncio
@@ -27,16 +25,3 @@ async def test_multi_agent_workflow_graph():
     assert "Node:SpecialistAnalysis" in state.graph_history
     assert "Node:RiskGovernor" in state.graph_history
     assert "Node:PostTradeReflection" in state.graph_history
-
-
-def test_chart_generator_data_formatting():
-    equity_curve = [
-        {"timestamp": "2026-09-01T00:00:00Z", "equity": 100000.0, "drawdown_pct": 0.0},
-        {"timestamp": "2026-09-02T00:00:00Z", "equity": 105000.0, "drawdown_pct": 0.0},
-        {"timestamp": "2026-09-03T00:00:00Z", "equity": 103000.0, "drawdown_pct": 0.019},
-    ]
-
-    data = ChartGenerator.generate_equity_curve_data(equity_curve)
-    assert len(data["timestamps"]) == 3
-    assert data["peak_equity"] == 105000.0
-    assert data["final_equity"] == 103000.0

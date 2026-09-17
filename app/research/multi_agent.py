@@ -2,10 +2,12 @@
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
-import httpx
+
 from app.config import settings
+from app.core.llm import chat_completion
 
 logger = logging.getLogger("MultiAgentDesk")
 
@@ -15,7 +17,7 @@ class AgentOpinion(BaseModel):
     stance: str  # "bullish", "bearish", "neutral"
     confidence: float  # 0.0 to 1.0
     rationale: str
-    key_factors: List[str] = Field(default_factory=list)
+    key_factors: list[str] = Field(default_factory=list)
 
 
 class MultiAgentConsensus(BaseModel):
@@ -26,7 +28,7 @@ class MultiAgentConsensus(BaseModel):
     risk_assessment: str
     suggested_stop_loss_pct: float
     suggested_take_profit_pct: float
-    agent_opinions: List[AgentOpinion] = Field(default_factory=list)
+    agent_opinions: list[AgentOpinion] = Field(default_factory=list)
 
 
 class MultiAgentTradingDesk:
@@ -34,41 +36,54 @@ class MultiAgentTradingDesk:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ):
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.api_key = api_key or settings.llm_api_key
         self.model = model or settings.llm_model
 
     async def _call_agent(self, system_role: str, user_prompt: str) -> str:
-        """Helper to invoke an agent role via OpenAI-compatible completions API."""
-        endpoint = f"{self.base_url}/chat/completions" if not self.base_url.endswith("/chat/completions") else self.base_url
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        """Invoke an agent role via the shared OpenAI SDK client."""
+        result = await chat_completion(system_role, user_prompt, model=self.model)
+        if not result.content:
+            logger.warning("Agent %s returned empty content; using baseline.", system_role)
+        return result.content
 
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_role},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-        }
-
+    async def _parse_opinion(self, name: str, raw: str) -> AgentOpinion:
+        """Parse an agent's raw JSON response into an AgentOpinion with a deterministic fallback."""
         try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                resp = await client.post(endpoint, headers=headers, json=payload)
-                if resp.status_code == 200:
-                    return resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.warning(f"Error calling {system_role}: {e}")
-        return ""
+            cleaned = raw.replace("```json", "").replace("```", "").strip()
+            p = json.loads(cleaned)
+            return AgentOpinion(role=name, **p)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.debug("Agent %s returned unparseable response (%s); using baseline.", name, e)
+            return AgentOpinion(role=name, stance="neutral", confidence=0.5, rationale="Algorithmic baseline analysis.")
 
-    async def evaluate_market(self, market_data: Dict[str, Any]) -> MultiAgentConsensus:
+    async def evaluate_market(self, market_data: dict[str, Any]) -> MultiAgentConsensus:
         """Run the multi-agent deliberation: Technical + Sentiment + Macro -> Bull vs Bear Debate -> CRO Consensus."""
+        current_price = float(market_data.get("current_price") or 0.0)
+        features = market_data.get("features") or {}
+        if current_price <= 0.0 or not features:
+            logger.warning(
+                "Multi-agent desk invoked without market data for %s (price=%s, features=%d); "
+                "returning HOLD instead of speculating.",
+                market_data.get("symbol"),
+                current_price,
+                len(features),
+            )
+            return MultiAgentConsensus(
+                final_action="HOLD",
+                conviction_score=0.0,
+                bull_case_summary="Insufficient data: no current price or feature vector supplied.",
+                bear_case_summary="Insufficient data: analysis withheld to avoid speculative decisions.",
+                risk_assessment="No market data available. Start ingestion and retry once a live tick exists.",
+                suggested_stop_loss_pct=0.0,
+                suggested_take_profit_pct=0.0,
+                agent_opinions=[],
+            )
+
         data_str = json.dumps(market_data, indent=2)
 
         # 1. Technical Analyst Agent
@@ -83,7 +98,9 @@ Return JSON:
 {data_str}
 Return JSON:
 {{"stance": "bullish|bearish|neutral", "confidence": 0.0-1.0, "rationale": "...", "key_factors": ["..."]}}"""
-        sent_raw = await self._call_agent("You are an expert Sentiment & Narrative Analyst. Output valid JSON.", sent_prompt)
+        sent_raw = await self._call_agent(
+            "You are an expert Sentiment & Narrative Analyst. Output valid JSON.", sent_prompt
+        )
 
         # 3. Macro & Regime Analyst Agent
         macro_prompt = f"""Evaluate macroeconomic regime, interest rate trajectory, and yield spreads:
@@ -93,14 +110,13 @@ Return JSON:
         macro_raw = await self._call_agent("You are a Chief Global Macro Strategist. Output valid JSON.", macro_prompt)
 
         # Parse specialist opinions
-        opinions: List[AgentOpinion] = []
-        for name, raw in [("Technical Analyst", tech_raw), ("Sentiment Analyst", sent_raw), ("Macro Analyst", macro_raw)]:
-            try:
-                cleaned = raw.replace("```json", "").replace("```", "").strip()
-                p = json.loads(cleaned)
-                opinions.append(AgentOpinion(role=name, **p))
-            except Exception:
-                opinions.append(AgentOpinion(role=name, stance="neutral", confidence=0.5, rationale="Algorithmic baseline analysis."))
+        opinions: list[AgentOpinion] = []
+        for name, raw in [
+            ("Technical Analyst", tech_raw),
+            ("Sentiment Analyst", sent_raw),
+            ("Macro Analyst", macro_raw),
+        ]:
+            opinions.append(await self._parse_opinion(name, raw))
 
         # 4. Bull vs Bear Debate & Chief Risk Officer (CRO) Consensus
         cro_prompt = f"""Review the specialists' findings:
@@ -117,7 +133,9 @@ Return ONLY valid JSON:
   "suggested_stop_loss_pct": 3.0,
   "suggested_take_profit_pct": 6.0
 }}"""
-        cro_raw = await self._call_agent("You are the Chief Risk Officer (CRO) and Portfolio Manager. Output valid JSON.", cro_prompt)
+        cro_raw = await self._call_agent(
+            "You are the Chief Risk Officer (CRO) and Portfolio Manager. Output valid JSON.", cro_prompt
+        )
 
         try:
             cleaned_cro = cro_raw.replace("```json", "").replace("```", "").strip()
@@ -133,6 +151,7 @@ Return ONLY valid JSON:
                 agent_opinions=opinions,
             )
         except Exception:
+            logger.exception("CRO response unparseable; using deterministic fallback consensus.")
             # Deterministic quantitative fallback
             return MultiAgentConsensus(
                 final_action="BUY" if any(o.stance == "bullish" for o in opinions) else "HOLD",

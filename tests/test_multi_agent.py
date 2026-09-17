@@ -1,7 +1,8 @@
 """Tests for Multi-Agent Trading Desk and consensus engine."""
 
 import pytest
-from app.research.multi_agent import MultiAgentTradingDesk, MultiAgentConsensus
+
+from app.research.multi_agent import MultiAgentConsensus, MultiAgentTradingDesk
 
 
 @pytest.mark.asyncio

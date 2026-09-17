@@ -1,9 +1,11 @@
 """Typed event schemas and event topic naming rules."""
 
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -38,7 +40,7 @@ class EventTopic(str, Enum):
 
 class Event(BaseModel):
     topic: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    payload: dict[str, Any] = Field(default_factory=dict)
     source: str = "system"
-    event_id: Optional[str] = None
+    event_id: str | None = None

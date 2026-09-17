@@ -1,8 +1,8 @@
 """Tests for data normalization, cleaning, and quality assurance."""
 
-import pytest
-from datetime import datetime, timezone
-from app.core.models import Candle, AssetClass, OrderSide
+from datetime import UTC, datetime
+
+from app.core.models import AssetClass, Candle
 from app.normalization.cleaner import DataQualityAssurance
 from app.normalization.normalizer import DataNormalizer
 
@@ -24,7 +24,7 @@ def test_data_normalizer_ccxt_ohlcv():
 def test_data_cleaner_validation():
     cleaner = DataQualityAssurance(max_price_jump_pct=0.5)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     valid_candle = Candle(
         symbol="BTC/USDT",
         timestamp=now,

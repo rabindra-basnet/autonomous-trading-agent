@@ -2,13 +2,12 @@
 
 import logging
 import sys
-from typing import Optional
 
 
 def setup_logging(
     level: str = "INFO",
     json_format: bool = False,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> None:
     """Configure root logger with unified formatted handlers."""
     log_level = getattr(logging, level.upper(), logging.INFO)
@@ -40,6 +39,7 @@ def setup_logging(
     # File Handler (Optional)
     if log_file:
         import os
+
         os.makedirs(os.path.dirname(log_file) if os.path.dirname(log_file) else ".", exist_ok=True)
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setLevel(log_level)

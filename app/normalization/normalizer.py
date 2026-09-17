@@ -1,17 +1,20 @@
 """Raw payload to canonical model normalizer."""
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+import logging
+from datetime import UTC, datetime
+from typing import Any
+
 from app.core.models import (
-    Candle,
-    TradeEvent,
-    OrderSide,
-    NewsItem,
-    SocialMetric,
-    MacroIndicator,
-    OnChainMetric,
     AssetClass,
+    Candle,
+    MacroIndicator,
+    NewsItem,
+    OrderSide,
+    SocialMetric,
+    TradeEvent,
 )
+
+logger = logging.getLogger("DataNormalizer")
 
 
 class DataNormalizer:
@@ -19,24 +22,23 @@ class DataNormalizer:
     def parse_timestamp(val: Any) -> datetime:
         """Parse int timestamp (ms/sec), ISO string, or datetime to UTC datetime."""
         if isinstance(val, datetime):
-            return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+            return val if val.tzinfo else val.replace(tzinfo=UTC)
         if isinstance(val, (int, float)):
             # If timestamp in milliseconds (> 1e11)
             if val > 1e11:
-                return datetime.fromtimestamp(val / 1000.0, tz=timezone.utc)
-            return datetime.fromtimestamp(val, tz=timezone.utc)
+                return datetime.fromtimestamp(val / 1000.0, tz=UTC)
+            return datetime.fromtimestamp(val, tz=UTC)
         if isinstance(val, str):
             try:
                 # Handle ISO formats
-                return datetime.fromisoformat(val.replace("Z", "+00:00"))
-            except Exception:
-                return datetime.now(timezone.utc)
-        return datetime.now(timezone.utc)
+                return datetime.fromisoformat(val)
+            except ValueError:
+                logger.warning("Unparseable timestamp %r; defaulting to now (UTC).", val)
+                return datetime.now(UTC)
+        return datetime.now(UTC)
 
     @classmethod
-    def from_ccxt_ohlcv(
-        cls, raw_ohlcv: List[Any], symbol: str, exchange: str = "binance"
-    ) -> Candle:
+    def from_ccxt_ohlcv(cls, raw_ohlcv: list[Any], symbol: str, exchange: str = "binance") -> Candle:
         """
         Normalize CCXT standard format: [timestamp, open, high, low, close, volume]
         """
@@ -54,7 +56,7 @@ class DataNormalizer:
         )
 
     @classmethod
-    def from_ccxt_trade(cls, raw_trade: Dict[str, Any], exchange: str = "binance") -> TradeEvent:
+    def from_ccxt_trade(cls, raw_trade: dict[str, Any], exchange: str = "binance") -> TradeEvent:
         """Normalize CCXT standard trade dict."""
         return TradeEvent(
             symbol=raw_trade.get("symbol", "UNKNOWN"),
@@ -67,7 +69,7 @@ class DataNormalizer:
         )
 
     @classmethod
-    def from_news_dict(cls, data: Dict[str, Any]) -> NewsItem:
+    def from_news_dict(cls, data: dict[str, Any]) -> NewsItem:
         return NewsItem(
             id=str(data.get("id", "")),
             source=data.get("source", "generic"),
@@ -80,7 +82,7 @@ class DataNormalizer:
         )
 
     @classmethod
-    def from_social_dict(cls, data: Dict[str, Any]) -> SocialMetric:
+    def from_social_dict(cls, data: dict[str, Any]) -> SocialMetric:
         return SocialMetric(
             platform=data.get("platform", "generic"),
             symbol=data.get("symbol", ""),
@@ -92,7 +94,7 @@ class DataNormalizer:
         )
 
     @classmethod
-    def from_macro_dict(cls, data: Dict[str, Any]) -> MacroIndicator:
+    def from_macro_dict(cls, data: dict[str, Any]) -> MacroIndicator:
         return MacroIndicator(
             series_id=data.get("series_id", ""),
             name=data.get("name", ""),

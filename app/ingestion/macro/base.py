@@ -1,8 +1,9 @@
 """Base class for Macroeconomic Data Providers."""
 
 from abc import ABC, abstractmethod
-from typing import Sequence
+from collections.abc import Sequence
 from datetime import datetime
+
 from app.core.models import MacroIndicator
 
 
@@ -11,8 +12,5 @@ class BaseMacroProvider(ABC):
         self.name = name
 
     @abstractmethod
-    async def fetch_indicator(
-        self, series_id: str, start_date: datetime
-    ) -> Sequence[MacroIndicator]:
+    async def fetch_indicator(self, series_id: str, start_date: datetime) -> Sequence[MacroIndicator]:
         """Fetch macroeconomic time series."""
-        pass

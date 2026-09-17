@@ -1,9 +1,11 @@
 """Strategy parameter optimization and Walk-Forward cross validation."""
 
-from typing import List, Dict, Any, Type, Sequence
 import itertools
+from collections.abc import Sequence
+from typing import Any
+
+from app.core.models import BacktestResult, Candle
 from app.research.backtest import BacktestEngine
-from app.core.models import Candle, BacktestResult
 from app.strategies.base import BaseStrategy
 
 
@@ -13,14 +15,14 @@ class StrategyOptimizer:
 
     def grid_search(
         self,
-        strategy_cls: Type[BaseStrategy],
+        strategy_cls: type[BaseStrategy],
         symbol: str,
         candles: Sequence[Candle],
-        param_grid: Dict[str, List[Any]],
-    ) -> List[BacktestResult]:
+        param_grid: dict[str, list[Any]],
+    ) -> list[BacktestResult]:
         keys = list(param_grid.keys())
         combos = list(itertools.product(*param_grid.values()))
-        results: List[BacktestResult] = []
+        results: list[BacktestResult] = []
 
         for combo in combos:
             params = dict(zip(keys, combo))
@@ -34,17 +36,17 @@ class StrategyOptimizer:
 
     def walk_forward_validation(
         self,
-        strategy_cls: Type[BaseStrategy],
+        strategy_cls: type[BaseStrategy],
         symbol: str,
         candles: Sequence[Candle],
-        param_grid: Dict[str, List[Any]],
+        param_grid: dict[str, list[Any]],
         n_splits: int = 3,
         train_ratio: float = 0.7,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Perform out-of-sample Walk-Forward Cross Validation."""
         total_len = len(candles)
         fold_size = total_len // n_splits
-        oof_results: List[BacktestResult] = []
+        oof_results: list[BacktestResult] = []
 
         for fold in range(n_splits):
             fold_candles = candles[fold * fold_size : (fold + 1) * fold_size]

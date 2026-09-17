@@ -1,23 +1,25 @@
 """Structural Protocol interfaces decoupling providers, features, risk, execution, and research."""
 
 from __future__ import annotations
-from typing import Protocol, AsyncIterator, Sequence, Optional, Dict, Any, List
+
+from collections.abc import AsyncIterator, Sequence
 from datetime import datetime
+from typing import Protocol
+
 from app.core.models import (
+    BacktestResult,
     Candle,
-    TradeEvent,
-    OrderBookSnapshot,
-    NewsItem,
-    SocialMetric,
-    MacroIndicator,
-    OnChainMetric,
+    ExperimentRecord,
     FeatureVector,
-    TradingSignal,
+    MacroIndicator,
+    NewsItem,
+    OnChainMetric,
     Order,
     PortfolioState,
     RiskCheckResult,
-    BacktestResult,
-    ExperimentRecord,
+    SocialMetric,
+    TradeEvent,
+    TradingSignal,
 )
 
 
@@ -34,11 +36,11 @@ class MarketDataProvider(Protocol):
         """Fetch current price for symbol."""
         ...
 
-    def stream_trades(self, symbols: List[str]) -> AsyncIterator[TradeEvent]:
+    def stream_trades(self, symbols: list[str]) -> AsyncIterator[TradeEvent]:
         """Stream real-time trade events."""
         ...
 
-    def stream_candles(self, symbols: List[str], timeframe: str) -> AsyncIterator[Candle]:
+    def stream_candles(self, symbols: list[str], timeframe: str) -> AsyncIterator[Candle]:
         """Stream real-time candle updates."""
         ...
 
@@ -46,13 +48,11 @@ class MarketDataProvider(Protocol):
 class NewsProvider(Protocol):
     name: str
 
-    async def fetch_latest_news(
-        self, keywords: Optional[List[str]] = None, limit: int = 50
-    ) -> Sequence[NewsItem]:
+    async def fetch_latest_news(self, keywords: list[str] | None = None, limit: int = 50) -> Sequence[NewsItem]:
         """Fetch recent news articles."""
         ...
 
-    def stream_news(self, keywords: Optional[List[str]] = None) -> AsyncIterator[NewsItem]:
+    def stream_news(self, keywords: list[str] | None = None) -> AsyncIterator[NewsItem]:
         """Stream live news events."""
         ...
 
@@ -60,11 +60,11 @@ class NewsProvider(Protocol):
 class SocialProvider(Protocol):
     name: str
 
-    async def fetch_metrics(self, symbols: List[str]) -> Sequence[SocialMetric]:
+    async def fetch_metrics(self, symbols: list[str]) -> Sequence[SocialMetric]:
         """Fetch aggregated social metrics (mentions, sentiment, velocity)."""
         ...
 
-    def stream_social_signals(self, symbols: List[str]) -> AsyncIterator[SocialMetric]:
+    def stream_social_signals(self, symbols: list[str]) -> AsyncIterator[SocialMetric]:
         """Stream live social signal updates."""
         ...
 
@@ -72,9 +72,7 @@ class SocialProvider(Protocol):
 class MacroProvider(Protocol):
     name: str
 
-    async def fetch_indicator(
-        self, series_id: str, start_date: datetime
-    ) -> Sequence[MacroIndicator]:
+    async def fetch_indicator(self, series_id: str, start_date: datetime) -> Sequence[MacroIndicator]:
         """Fetch macroeconomic time series."""
         ...
 
@@ -102,13 +100,13 @@ class FeaturePipelineProtocol(Protocol):
 
 class StrategyProtocol(Protocol):
     name: str
-    symbols: List[str]
+    symbols: list[str]
 
     def generate_signals(
         self,
         feature_vector: FeatureVector,
         portfolio: PortfolioState,
-    ) -> List[TradingSignal]:
+    ) -> list[TradingSignal]:
         """Generate actionable trade signals from features & state."""
         ...
 
@@ -143,16 +141,14 @@ class ExecutionEngineProtocol(Protocol):
 
 
 class ResearchAgentProtocol(Protocol):
-    async def generate_hypotheses(self) -> List[str]:
+    async def generate_hypotheses(self) -> list[str]:
         """Generate market / feature / strategy hypotheses."""
         ...
 
-    async def evaluate_strategy(
-        self, strategy: StrategyProtocol, dataset_name: str
-    ) -> BacktestResult:
+    async def evaluate_strategy(self, strategy: StrategyProtocol, dataset_name: str) -> BacktestResult:
         """Run walk-forward backtest evaluation on historical data."""
         ...
 
-    async def run_experiment_loop(self) -> List[ExperimentRecord]:
+    async def run_experiment_loop(self) -> list[ExperimentRecord]:
         """Run self-improvement cycle and promote winning strategies."""
         ...

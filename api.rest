@@ -1,0 +1,72 @@
+### AutoQuant-AI Backend API requests
+### Open with the VS Code "REST Client" extension or httpyac, then send each request.
+###
+### Start the server first:
+###   uv run python main.py
+### (requires the env vars in .env; provider keys are checked at startup by app/deps.py)
+
+@baseUrl = http://localhost:8000
+
+### 1. Health check
+GET {{baseUrl}}/health
+
+### 2. Global market holder index summary (symbols indexed, per-exchange counts,
+###    primary venue counts)
+GET {{baseUrl}}/api/market/index
+
+### 2b. Full routing index sample (symbol -> best + all listing exchanges)
+GET {{baseUrl}}/api/market/index?quote=USDT&limit=20
+
+### 2c. Routing for one symbol across all exchanges that list it
+GET {{baseUrl}}/api/market/index?symbol=BTC/USDT
+
+### 3. Exchange routing for a symbol (best-first by liquidity / quote / priority)
+GET {{baseUrl}}/api/market/routes?symbol=BTC/USDT
+
+### Routing for a symbol that may not be on Binance
+GET {{baseUrl}}/api/market/routes?symbol=SOL/USDT
+
+### 4. List active trading symbols in the DB
+GET {{baseUrl}}/api/symbols
+
+### 5. Add a trading symbol
+POST {{baseUrl}}/api/symbols
+Content-Type: application/json
+
+{
+  "symbol": "BTC/USDT",
+  "asset_class": "crypto",
+  "category": "spot"
+}
+
+### 6. Deactivate a trading symbol
+DELETE {{baseUrl}}/api/symbols?symbol=BTC/USDT
+
+### 7. Current paper-trading portfolio state
+GET {{baseUrl}}/api/portfolio
+
+### 8. Recent orders (from PostgreSQL)
+GET {{baseUrl}}/api/orders?limit=20
+
+### 9. Run a backtest
+POST {{baseUrl}}/api/backtest
+Content-Type: application/json
+
+{
+  "symbol": "BTC/USDT",
+  "days": 30,
+  "strategy": "sentiment_momentum"
+}
+
+### 10. Kick off AI research & strategy evolution in the background
+POST {{baseUrl}}/api/research/run?symbol=BTC/USDT
+
+### 11. Multi-agent market consensus (technical + sentiment + macro + CRO)
+GET {{baseUrl}}/api/agents/consensus?symbol=BTC/USDT
+
+### 12. Execute the multi-agent StateGraph workflow trace
+GET {{baseUrl}}/api/graphs/workflow?symbol=BTC/USDT
+
+### 13. WebSocket live market + order feed
+### (not supported by REST Client; use a WS client, e.g.: wscat -c ws://localhost:8000/ws/live)
+WS {{baseUrl}}/ws/live

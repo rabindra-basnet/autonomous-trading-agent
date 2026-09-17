@@ -1,20 +1,21 @@
 """Multi-modal Sentiment Momentum Strategy fusing price, sentiment, and macro regime."""
 
-from typing import List, Dict, Any
-from app.strategies.base import BaseStrategy
+from typing import Any
+
 from app.core.models import (
     FeatureVector,
     PortfolioState,
-    TradingSignal,
     SignalType,
+    TradingSignal,
 )
+from app.strategies.base import BaseStrategy
 
 
 class SentimentMomentumStrategy(BaseStrategy):
     def __init__(
         self,
-        symbols: List[str],
-        parameters: Dict[str, Any] | None = None,
+        symbols: list[str],
+        parameters: dict[str, Any] | None = None,
     ):
         super().__init__(name="sentiment_momentum", symbols=symbols, parameters=parameters)
         self.min_sentiment = float(self.parameters.get("min_sentiment_threshold", 0.15))
@@ -24,8 +25,8 @@ class SentimentMomentumStrategy(BaseStrategy):
         self,
         feature_vector: FeatureVector,
         portfolio: PortfolioState,
-    ) -> List[TradingSignal]:
-        signals: List[TradingSignal] = []
+    ) -> list[TradingSignal]:
+        signals: list[TradingSignal] = []
         sym = feature_vector.symbol
         if sym not in self.symbols:
             return signals
@@ -36,21 +37,18 @@ class SentimentMomentumStrategy(BaseStrategy):
         ema_26 = feats.get("ema_26", 0.0)
         composite_sentiment = feats.get("composite_sentiment", 0.0)
         social_velocity = feats.get("social_velocity_pct", 0.0)
-        macro_risk_on = feats.get("macro_risk_on", 1.0)
+        macro_risk_on = feats.get("macro_risk_on")
 
-        # Macro gate check: If macro is risk-off and filter is active, avoid opening new longs
-        if self.macro_filter and macro_risk_on < 0.5:
+        # Macro gate check: if real rate data marks risk-off and filter is active, avoid opening new longs.
+        # When no macro data is available the gate is skipped rather than assuming risk-on.
+        if self.macro_filter and macro_risk_on is not None and macro_risk_on < 0.5:
             return signals
 
         current_position = portfolio.positions.get(sym)
 
         # Multi-modal Long Trigger:
         # Technical momentum positive + Sentiment bullish + Social buzz accelerating
-        if (
-            ema_12 > ema_26
-            and composite_sentiment >= self.min_sentiment
-            and social_velocity >= 0.0
-        ):
+        if ema_12 > ema_26 and composite_sentiment >= self.min_sentiment and social_velocity >= 0.0:
             if not current_position:
                 # Signal strength is scaled by sentiment magnitude and velocity
                 strength = min(1.0, max(0.3, composite_sentiment + (social_velocity / 200.0)))

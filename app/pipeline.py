@@ -1,34 +1,29 @@
 """Master Trading System Orchestrator and Pipeline."""
 
-import asyncio
-import logging
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional
 from app.core.bus import EventBus
 from app.core.events import Event, EventTopic
+from app.core.logging import get_logger
 from app.core.models import (
     Candle,
-    NewsItem,
-    SocialMetric,
     MacroIndicator,
+    NewsItem,
     OnChainMetric,
+    SocialMetric,
     TradingSignal,
-    Order,
-    PortfolioState,
 )
+from app.execution.oms import OrderManagementSystem
+from app.execution.paper_trader import PaperTradingEngine
+from app.execution.risk_manager import RiskManager
+from app.features.pipeline import FeaturePipeline
+from app.ingestion.macro.base import BaseMacroProvider
 from app.ingestion.market.base import BaseMarketDataProvider
 from app.ingestion.news.base import BaseNewsProvider
-from app.ingestion.social.base import BaseSocialProvider
-from app.ingestion.macro.base import BaseMacroProvider
 from app.ingestion.onchain.base import BaseOnChainProvider
+from app.ingestion.social.base import BaseSocialProvider
 from app.normalization.cleaner import DataQualityAssurance
 from app.storage.database import TimeSeriesDatabase
 from app.storage.feature_store import PointInTimeFeatureStore
-from app.features.pipeline import FeaturePipeline
-from app.execution.risk_manager import RiskManager
-from app.execution.oms import OrderManagementSystem
-from app.config import settings
-from app.core.logging import get_logger
+from app.strategies.base import BaseStrategy
 
 logger = get_logger("TradingPipeline")
 
@@ -36,23 +31,23 @@ logger = get_logger("TradingPipeline")
 class TradingSystemPipeline:
     def __init__(
         self,
-        symbols: Optional[List[str]] = None,
-        market_provider: Optional[BaseMarketDataProvider] = None,
-        news_provider: Optional[BaseNewsProvider] = None,
-        social_provider: Optional[BaseSocialProvider] = None,
-        macro_provider: Optional[BaseMacroProvider] = None,
-        onchain_provider: Optional[BaseOnChainProvider] = None,
-        strategies: Optional[List[BaseStrategy]] = None,
+        symbols: list[str] | None = None,
+        market_provider: BaseMarketDataProvider | None = None,
+        news_provider: BaseNewsProvider | None = None,
+        social_provider: BaseSocialProvider | None = None,
+        macro_provider: BaseMacroProvider | None = None,
+        onchain_provider: BaseOnChainProvider | None = None,
+        strategies: list[BaseStrategy] | None = None,
         db_path: str = "data/trading_agent.duckdb",
         initial_capital: float = 100000.0,
     ):
-        self.symbols = symbols or settings.symbols
+        self.symbols = symbols or []
         self.market_provider = market_provider
         self.news_provider = news_provider
         self.social_provider = social_provider
         self.macro_provider = macro_provider
         self.onchain_provider = onchain_provider
-        self.strategies = strategies
+        self.strategies: list[BaseStrategy] = strategies or []
 
         # Subsystems
         self.bus = EventBus()
@@ -65,11 +60,11 @@ class TradingSystemPipeline:
         self.paper_trader = PaperTradingEngine(initial_cash=initial_capital)
 
         # In-memory streaming buffers
-        self._candle_buffers: Dict[str, List[Candle]] = {s: [] for s in symbols}
-        self._latest_news: List[NewsItem] = []
-        self._latest_social: List[SocialMetric] = []
-        self._latest_macro: List[MacroIndicator] = []
-        self._latest_onchain: List[OnChainMetric] = []
+        self._candle_buffers: dict[str, list[Candle]] = {s: [] for s in self.symbols}
+        self._latest_news: list[NewsItem] = []
+        self._latest_social: list[SocialMetric] = []
+        self._latest_macro: list[MacroIndicator] = []
+        self._latest_onchain: list[OnChainMetric] = []
         self._running = False
 
     async def _handle_market_candle(self, event: Event) -> None:

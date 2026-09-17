@@ -1,9 +1,8 @@
 """Data Quality assurance: Outlier detection, clock drift synchronization, and gap detection."""
 
-from datetime import datetime, timezone
-import math
-from typing import List, Optional
 import logging
+from datetime import UTC
+
 from app.core.models import Candle, TradeEvent
 
 logger = logging.getLogger("DataCleaner")
@@ -18,7 +17,7 @@ class DataQualityAssurance:
         self.max_price_jump_pct = max_price_jump_pct
         self.min_volume = min_volume
 
-    def validate_candle(self, candle: Candle, previous_candle: Optional[Candle] = None) -> bool:
+    def validate_candle(self, candle: Candle, previous_candle: Candle | None = None) -> bool:
         """Validate candle integrity and sanity."""
         if candle.high < candle.low:
             logger.warning(f"Invalid candle {candle.symbol}: high ({candle.high}) < low ({candle.low})")
@@ -41,13 +40,13 @@ class DataQualityAssurance:
             jump = abs(candle.close - previous_candle.close) / previous_candle.close
             if jump > self.max_price_jump_pct:
                 logger.warning(
-                    f"Outlier spike detected on {candle.symbol}: {jump*100:.1f}% jump from {previous_candle.close} to {candle.close}"
+                    f"Outlier spike detected on {candle.symbol}: {jump * 100:.1f}% jump from {previous_candle.close} to {candle.close}"
                 )
                 return False
 
         return True
 
-    def clean_candle_sequence(self, candles: List[Candle]) -> List[Candle]:
+    def clean_candle_sequence(self, candles: list[Candle]) -> list[Candle]:
         """Filter out duplicates, sort by timestamp ascending, and remove invalid candles."""
         if not candles:
             return []
@@ -56,12 +55,12 @@ class DataQualityAssurance:
         sorted_candles = sorted(candles, key=lambda c: c.timestamp)
 
         # Deduplicate and validate
-        cleaned: List[Candle] = []
+        cleaned: list[Candle] = []
         seen_timestamps = set()
 
         for c in sorted_candles:
             # Enforce UTC
-            ts = c.timestamp if c.timestamp.tzinfo else c.timestamp.replace(tzinfo=timezone.utc)
+            ts = c.timestamp if c.timestamp.tzinfo else c.timestamp.replace(tzinfo=UTC)
             if ts in seen_timestamps:
                 continue
 
@@ -74,6 +73,4 @@ class DataQualityAssurance:
 
     def validate_trade(self, trade: TradeEvent) -> bool:
         """Validate single trade event."""
-        if trade.price <= 0 or trade.size <= 0:
-            return False
-        return True
+        return not (trade.price <= 0 or trade.size <= 0)

@@ -1,17 +1,18 @@
 """Tests for technical, sentiment, and macro feature pipelines."""
 
-import pytest
+from datetime import UTC, datetime, timedelta
+
 import numpy as np
-from datetime import datetime, timezone, timedelta
+
 from app.core.models import Candle, NewsItem, SocialMetric
-from app.features.technical import TechnicalIndicators
-from app.features.sentiment import SentimentFeatures
 from app.features.pipeline import FeaturePipeline
+from app.features.sentiment import SentimentFeatures
+from app.features.technical import TechnicalIndicators
 
 
 def test_technical_indicators():
     prices = np.array([10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 14.0, 13.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0])
-    
+
     # EMA
     ema = TechnicalIndicators.ema(prices, 5)
     assert len(ema) == len(prices)
@@ -24,7 +25,7 @@ def test_technical_indicators():
 
 
 def test_sentiment_features():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     news = [
         NewsItem(
             id="1",
@@ -55,7 +56,7 @@ def test_sentiment_features():
 
 def test_feature_pipeline():
     pipeline = FeaturePipeline()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     candles = [
         Candle(
             symbol="BTC/USDT",

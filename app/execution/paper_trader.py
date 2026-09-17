@@ -1,14 +1,14 @@
 """High-fidelity Paper Trading execution engine."""
 
 import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
+
 from app.core.models import (
     Order,
-    OrderStatus,
     OrderSide,
-    Position,
+    OrderStatus,
     PortfolioState,
+    Position,
 )
 
 logger = logging.getLogger("PaperTrader")
@@ -19,19 +19,19 @@ class PaperTradingEngine:
         self,
         initial_cash: float = 100000.0,
         commission_rate: float = 0.001,  # 0.1%
-        slippage_bps: float = 5.0,        # 0.05%
+        slippage_bps: float = 5.0,  # 0.05%
     ):
         self.cash_balance = initial_cash
         self.initial_capital = initial_cash
         self.commission_rate = commission_rate
         self.slippage_rate = slippage_bps / 10000.0
-        self.positions: Dict[str, Position] = {}
-        self.filled_orders: List[Order] = []
+        self.positions: dict[str, Position] = {}
+        self.filled_orders: list[Order] = []
         self.peak_equity = initial_cash
         self.realized_pnl = 0.0
 
-    def get_portfolio_state(self, current_prices: Dict[str, float] | None = None) -> PortfolioState:
-        now = datetime.now(timezone.utc)
+    def get_portfolio_state(self, current_prices: dict[str, float] | None = None) -> PortfolioState:
+        now = datetime.now(UTC)
         prices = current_prices or {}
 
         # Update position current prices and unrealized pnl
@@ -46,13 +46,10 @@ class PaperTradingEngine:
             pos.last_updated = now
             unrealized_pnl += pos.unrealized_pnl
 
-        total_position_val = sum(
-            p.size * p.current_price for p in self.positions.values()
-        )
+        total_position_val = sum(p.size * p.current_price for p in self.positions.values())
         total_equity = self.cash_balance + total_position_val
 
-        if total_equity > self.peak_equity:
-            self.peak_equity = total_equity
+        self.peak_equity = max(self.peak_equity, total_equity)
 
         drawdown_pct = (self.peak_equity - total_equity) / self.peak_equity if self.peak_equity > 0 else 0.0
 
@@ -68,7 +65,7 @@ class PaperTradingEngine:
         )
 
     async def execute_order(self, order: Order, current_market_price: float) -> Order:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Apply slippage
         if order.side == OrderSide.BUY:

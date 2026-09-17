@@ -1,2 +1,2 @@
-web: python main.py
-worker: python -m app.worker
+web: uv run main.py
+# worker: uv run -m app.worker

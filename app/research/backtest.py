@@ -1,22 +1,23 @@
 """High-fidelity Event-Driven Point-in-Time Backtesting Engine."""
 
-from datetime import datetime, timezone
-from typing import List, Sequence, Dict, Any, Optional
+from collections.abc import Sequence
+from typing import Any
+
 from app.core.models import (
-    Candle,
-    NewsItem,
-    SocialMetric,
-    MacroIndicator,
-    OnChainMetric,
     BacktestResult,
+    Candle,
+    MacroIndicator,
+    NewsItem,
+    OnChainMetric,
+    OrderSide,
     PortfolioState,
     Position,
-    OrderSide,
     SignalType,
+    SocialMetric,
 )
 from app.core.protocols import StrategyProtocol
-from app.features.pipeline import FeaturePipeline
 from app.execution.risk_manager import RiskManager
+from app.features.pipeline import FeaturePipeline
 from app.research.evaluator import StrategyEvaluator
 
 
@@ -52,9 +53,9 @@ class BacktestEngine:
 
         cash = self.initial_capital
         peak_equity = self.initial_capital
-        positions: Dict[str, Position] = {}
-        trades_log: List[Dict[str, Any]] = []
-        equity_curve: List[Dict[str, Any]] = []
+        positions: dict[str, Position] = {}
+        trades_log: list[dict[str, Any]] = []
+        equity_curve: list[dict[str, Any]] = []
 
         # Warm-up period for indicators
         warmup = 30
@@ -76,25 +77,26 @@ class BacktestEngine:
                 hit_target = pos.take_profit and price >= pos.take_profit
 
                 if hit_stop or hit_target:
-                    exit_price = (
-                        (pos.stop_loss if hit_stop else pos.take_profit)
-                        * (1.0 - self.slippage_rate)
-                    )
+                    raw_exit = pos.stop_loss if hit_stop else pos.take_profit
+                    assert raw_exit is not None
+                    exit_price = raw_exit * (1.0 - self.slippage_rate)
                     trade_val = exit_price * pos.size
                     comm = trade_val * self.commission_rate
                     pnl = (exit_price - pos.entry_price) * pos.size - comm
                     cash += trade_val - comm
 
-                    trades_log.append({
-                        "timestamp": ts.isoformat(),
-                        "symbol": symbol,
-                        "side": "sell",
-                        "size": pos.size,
-                        "entry_price": pos.entry_price,
-                        "exit_price": exit_price,
-                        "pnl": pnl,
-                        "reason": "stop_loss" if hit_stop else "take_profit",
-                    })
+                    trades_log.append(
+                        {
+                            "timestamp": ts.isoformat(),
+                            "symbol": symbol,
+                            "side": "sell",
+                            "size": pos.size,
+                            "entry_price": pos.entry_price,
+                            "exit_price": exit_price,
+                            "pnl": pnl,
+                            "reason": "stop_loss" if hit_stop else "take_profit",
+                        }
+                    )
                     del positions[symbol]
 
             # Current Equity
@@ -114,12 +116,14 @@ class BacktestEngine:
                 positions={k: v.model_copy() for k, v in positions.items()},
             )
 
-            equity_curve.append({
-                "timestamp": ts.isoformat(),
-                "equity": total_equity,
-                "cash": cash,
-                "drawdown_pct": drawdown,
-            })
+            equity_curve.append(
+                {
+                    "timestamp": ts.isoformat(),
+                    "equity": total_equity,
+                    "cash": cash,
+                    "drawdown_pct": drawdown,
+                }
+            )
 
             # 1. Point-in-time feature vector computation
             # Filter news/social/macro available strictly up to current timestamp
@@ -148,10 +152,10 @@ class BacktestEngine:
 
                 if sig.signal_type == SignalType.LONG:
                     fill_price = price * (1.0 + self.slippage_rate)
-                    cost = (fill_price * risk_res.adjusted_size)
+                    cost = fill_price * risk_res.adjusted_size
                     comm = cost * self.commission_rate
                     if cash >= (cost + comm):
-                        cash -= (cost + comm)
+                        cash -= cost + comm
                         positions[symbol] = Position(
                             symbol=symbol,
                             side=OrderSide.BUY,
@@ -172,16 +176,18 @@ class BacktestEngine:
                     pnl = (exit_price - pos.entry_price) * pos.size - comm
                     cash += trade_val - comm
 
-                    trades_log.append({
-                        "timestamp": ts.isoformat(),
-                        "symbol": symbol,
-                        "side": "sell",
-                        "size": pos.size,
-                        "entry_price": pos.entry_price,
-                        "exit_price": exit_price,
-                        "pnl": pnl,
-                        "reason": sig.metadata.get("reason", "signal_flat"),
-                    })
+                    trades_log.append(
+                        {
+                            "timestamp": ts.isoformat(),
+                            "symbol": symbol,
+                            "side": "sell",
+                            "size": pos.size,
+                            "entry_price": pos.entry_price,
+                            "exit_price": exit_price,
+                            "pnl": pnl,
+                            "reason": sig.metadata.get("reason", "signal_flat"),
+                        }
+                    )
                     del positions[symbol]
 
         return StrategyEvaluator.calculate_metrics(

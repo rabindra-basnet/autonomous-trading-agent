@@ -1,7 +1,7 @@
 """High-performance technical analysis indicators."""
 
 import numpy as np
-from typing import List, Dict
+
 from app.core.models import Candle
 
 
@@ -11,7 +11,7 @@ class TechnicalIndicators:
         if len(prices) < period:
             return np.full_like(prices, np.nan)
         weights = np.ones(period) / period
-        res = np.convolve(prices, weights, mode='valid')
+        res = np.convolve(prices, weights, mode="valid")
         pad = np.full(period - 1, np.nan)
         return np.concatenate((pad, res))
 
@@ -97,7 +97,7 @@ class TechnicalIndicators:
         return atr_arr
 
     @classmethod
-    def extract_features(cls, candles: List[Candle]) -> Dict[str, float]:
+    def extract_features(cls, candles: list[Candle]) -> dict[str, float]:
         """Compute latest technical feature set from a list of candles."""
         if not candles:
             return {}
@@ -145,7 +145,9 @@ class TechnicalIndicators:
             "macd_hist": float(hist[-1]),
             "bb_upper": float(bb_upper[-1]) if not np.isnan(bb_upper[-1]) else closes[-1],
             "bb_lower": float(bb_lower[-1]) if not np.isnan(bb_lower[-1]) else closes[-1],
-            "bb_bandwidth": float((bb_upper[-1] - bb_lower[-1]) / bb_mid[-1]) if (not np.isnan(bb_mid[-1]) and bb_mid[-1] > 0) else 0.0,
+            "bb_bandwidth": float((bb_upper[-1] - bb_lower[-1]) / bb_mid[-1])
+            if (not np.isnan(bb_mid[-1]) and bb_mid[-1] > 0)
+            else 0.0,
             "atr_14": float(atr_val),
             "ret_5": float(ret_5),
             "ret_20": float(ret_20),

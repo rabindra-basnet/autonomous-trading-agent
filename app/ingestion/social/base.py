@@ -1,7 +1,8 @@
 """Base class for Social Signals Providers."""
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, Sequence, List
+from collections.abc import AsyncIterator, Sequence
+
 from app.core.models import SocialMetric
 
 
@@ -10,11 +11,9 @@ class BaseSocialProvider(ABC):
         self.name = name
 
     @abstractmethod
-    async def fetch_metrics(self, symbols: List[str]) -> Sequence[SocialMetric]:
+    async def fetch_metrics(self, symbols: list[str]) -> Sequence[SocialMetric]:
         """Fetch aggregated social metrics."""
-        pass
 
     @abstractmethod
-    def stream_social_signals(self, symbols: List[str]) -> AsyncIterator[SocialMetric]:
+    def stream_social_signals(self, symbols: list[str]) -> AsyncIterator[SocialMetric]:
         """Stream real-time social metrics."""
-        pass

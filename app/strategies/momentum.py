@@ -1,20 +1,21 @@
 """Technical Momentum and Trend Strategy."""
 
-from typing import List, Dict, Any
-from app.strategies.base import BaseStrategy
+from typing import Any
+
 from app.core.models import (
     FeatureVector,
     PortfolioState,
-    TradingSignal,
     SignalType,
+    TradingSignal,
 )
+from app.strategies.base import BaseStrategy
 
 
 class MomentumTrendStrategy(BaseStrategy):
     def __init__(
         self,
-        symbols: List[str],
-        parameters: Dict[str, Any] | None = None,
+        symbols: list[str],
+        parameters: dict[str, Any] | None = None,
     ):
         super().__init__(name="momentum_trend", symbols=symbols, parameters=parameters)
         self.rsi_oversold = float(self.parameters.get("rsi_oversold", 35.0))
@@ -24,8 +25,8 @@ class MomentumTrendStrategy(BaseStrategy):
         self,
         feature_vector: FeatureVector,
         portfolio: PortfolioState,
-    ) -> List[TradingSignal]:
-        signals: List[TradingSignal] = []
+    ) -> list[TradingSignal]:
+        signals: list[TradingSignal] = []
         sym = feature_vector.symbol
         if sym not in self.symbols:
             return signals

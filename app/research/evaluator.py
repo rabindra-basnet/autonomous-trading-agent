@@ -1,9 +1,10 @@
 """Quantitative strategy evaluation and risk-adjusted metrics."""
 
-from datetime import datetime, timezone
-import math
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import Any
+
 import numpy as np
+
 from app.core.models import BacktestResult
 
 
@@ -15,9 +16,9 @@ class StrategyEvaluator:
         start_date: datetime,
         end_date: datetime,
         initial_capital: float,
-        equity_curve: List[Dict[str, Any]],
-        trades_log: List[Dict[str, Any]],
-        parameters: Dict[str, Any] | None = None,
+        equity_curve: list[dict[str, Any]],
+        trades_log: list[dict[str, Any]],
+        parameters: dict[str, Any] | None = None,
     ) -> BacktestResult:
         if not equity_curve:
             return BacktestResult(
@@ -76,7 +77,9 @@ class StrategyEvaluator:
 
         gross_profits = sum([p for p in pnls if p > 0])
         gross_losses = abs(sum([p for p in pnls if p < 0]))
-        profit_factor = (gross_profits / gross_losses) if gross_losses > 0 else (gross_profits if gross_profits > 0 else 1.0)
+        profit_factor = (
+            (gross_profits / gross_losses) if gross_losses > 0 else (gross_profits if gross_profits > 0 else 1.0)
+        )
 
         # CAGR
         days = max(1, (end_date - start_date).days)

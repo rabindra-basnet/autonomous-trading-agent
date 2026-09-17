@@ -1,20 +1,51 @@
 """Tests for backtester and autonomous AI research loop."""
 
+from datetime import UTC, datetime, timedelta
+
+import numpy as np
 import pytest
-from datetime import datetime, timezone, timedelta
-from app.ingestion.market.simulated import SimulatedMarketDataProvider
-from app.strategies.momentum import MomentumTrendStrategy
-from app.strategies.sentiment_momentum import SentimentMomentumStrategy
+
+from app.core.models import AssetClass, Candle
 from app.research.backtest import BacktestEngine
 from app.research.researcher import AutonomousResearcher
+from app.strategies.momentum import MomentumTrendStrategy
+
+
+def _synthetic_candles(
+    symbol: str = "BTC/USDT",
+    hours: int = 720,
+    start_price: float = 50000.0,
+    seed: int = 42,
+) -> list[Candle]:
+    rng = np.random.default_rng(seed)
+    rets = rng.normal(0.0001, 0.02, hours)
+    closes = start_price * np.cumprod(1 + rets)
+    now = datetime.now(UTC)
+    candles = []
+    for i in range(hours):
+        ts = now - timedelta(hours=hours - i)
+        close = float(closes[i])
+        high = close * (1 + abs(rng.normal(0, 0.005)))
+        low = close * (1 - abs(rng.normal(0, 0.005)))
+        candles.append(
+            Candle(
+                symbol=symbol,
+                asset_class=AssetClass.CRYPTO,
+                timestamp=ts,
+                open=float(closes[max(0, i - 1)]),
+                high=max(high, close),
+                low=min(low, close),
+                close=close,
+                volume=float(rng.uniform(100, 5000)),
+                exchange="synthetic",
+            )
+        )
+    return candles
 
 
 @pytest.mark.asyncio
 async def test_backtest_engine():
-    market_prov = SimulatedMarketDataProvider(seed=42)
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(days=30)
-    candles = await market_prov.fetch_historical_candles("BTC/USDT", "1h", start, end)
+    candles = _synthetic_candles()
 
     strat = MomentumTrendStrategy(symbols=["BTC/USDT"])
     engine = BacktestEngine(initial_capital=100000.0)
@@ -27,17 +58,10 @@ async def test_backtest_engine():
 
 @pytest.mark.asyncio
 async def test_autonomous_research_loop(tmp_path):
-    market_prov = SimulatedMarketDataProvider(seed=99)
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(days=40)
-    candles = await market_prov.fetch_historical_candles("BTC/USDT", "1h", start, end)
+    candles = _synthetic_candles(hours=960, seed=99)
 
-    from app.storage.registry import StrategyRegistry
-    reg_file = str(tmp_path / "test_reg.json")
-    registry = StrategyRegistry(registry_file=reg_file)
-
-    researcher = AutonomousResearcher(registry=registry)
+    researcher = AutonomousResearcher()
     records = await researcher.run_experiment_loop("BTC/USDT", candles)
 
     assert len(records) > 0
-    assert len(registry.records) == len(records)
+    assert all(r.experiment_id and r.hypothesis and r.metrics for r in records)

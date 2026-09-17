@@ -1,12 +1,14 @@
 """Federal Reserve Economic Data (FRED) macroeconomic data provider."""
 
-from datetime import datetime, timezone
-import os
 import logging
-from typing import List, Sequence
+import os
+from collections.abc import Sequence
+from datetime import UTC, datetime
+
 import httpx
-from app.ingestion.macro.base import BaseMacroProvider
+
 from app.core.models import MacroIndicator
+from app.ingestion.macro.base import BaseMacroProvider
 
 logger = logging.getLogger("FREDMacroProvider")
 
@@ -18,20 +20,14 @@ class FREDMacroProvider(BaseMacroProvider):
         super().__init__(name="fred")
         self.api_key = api_key or os.getenv("FRED_API_KEY", "")
 
-    async def fetch_indicator(
-        self, series_id: str, start_date: datetime
-    ) -> Sequence[MacroIndicator]:
+    async def fetch_indicator(self, series_id: str, start_date: datetime) -> Sequence[MacroIndicator]:
         if not self.api_key:
-            logger.warning("No FRED API key provided. Using fallback baseline data.")
-            return [
-                MacroIndicator(
-                    series_id=series_id,
-                    name=f"Series {series_id}",
-                    timestamp=datetime.now(timezone.utc),
-                    value=4.75 if "FEDFUNDS" in series_id else 0.45,
-                    unit="percent",
-                )
-            ]
+            logger.warning(
+                "FRED_API_KEY not set; returning no data for %s. "
+                "Macro features will be unavailable until the key is configured.",
+                series_id,
+            )
+            return []
 
         params = {
             "series_id": series_id,
@@ -40,7 +36,7 @@ class FREDMacroProvider(BaseMacroProvider):
             "observation_start": start_date.strftime("%Y-%m-%d"),
         }
 
-        indicators: List[MacroIndicator] = []
+        indicators: list[MacroIndicator] = []
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(self.FRED_URL, params=params)
@@ -51,7 +47,7 @@ class FREDMacroProvider(BaseMacroProvider):
                         val_str = o.get("value")
                         if val_str and val_str != ".":
                             val = float(val_str)
-                            dt = datetime.strptime(o.get("date"), "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                            dt = datetime.strptime(o.get("date"), "%Y-%m-%d").replace(tzinfo=UTC)
                             chg = ((val - prev_val) / prev_val) * 100.0 if prev_val else 0.0
                             indicators.append(
                                 MacroIndicator(
@@ -64,7 +60,7 @@ class FREDMacroProvider(BaseMacroProvider):
                                 )
                             )
                             prev_val = val
-        except Exception as e:
-            logger.error(f"Error fetching FRED series {series_id}: {e}")
+        except Exception:
+            logger.exception("Error fetching FRED series %s", series_id)
 
         return indicators

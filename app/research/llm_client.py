@@ -1,11 +1,11 @@
 """Universal OpenAI-Compatible LLM Client supporting Groq, OpenRouter, Ollama, Gemini, DeepSeek, vLLM."""
 
-import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
-import httpx
+from typing import Any
+
 from app.config import settings
+from app.core.llm import chat_completion
 
 logger = logging.getLogger("OpenAICompatibleLLMClient")
 
@@ -15,15 +15,15 @@ class OpenAICompatibleLLMClient:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
     ):
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.api_key = api_key or settings.llm_api_key
         self.model = model or settings.llm_model
 
-    async def generate_hypotheses(self, market_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def generate_hypotheses(self, market_context: dict[str, Any]) -> list[dict[str, Any]]:
         """Query any OpenAI-compatible endpoint (/chat/completions) to generate quantitative trading hypotheses."""
         prompt = f"""You are an elite quantitative researcher designing self-improving trading strategies.
 Market Context:
@@ -51,43 +51,21 @@ Return ONLY valid JSON array with this exact structure:
   }}
 ]
 """
-        # Ensure endpoint url is correct
-        endpoint = f"{self.base_url}/chat/completions" if not self.base_url.endswith("/chat/completions") else self.base_url
-
-        headers = {
-            "Content-Type": "application/json",
-        }
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": "You are a quantitative finance AI. Respond only with JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-        }
+        result = await chat_completion(
+            "You are a quantitative finance AI. Respond only with JSON.", prompt, model=self.model
+        )
+        content = result.content
 
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(endpoint, headers=headers, json=payload)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    content = data["choices"][0]["message"]["content"]
-                    cleaned_json = content.replace("```json", "").replace("```", "").strip()
-                    parsed = json.loads(cleaned_json)
-                    if isinstance(parsed, list):
-                        return parsed
-                    elif isinstance(parsed, dict) and "hypotheses" in parsed:
-                        return parsed["hypotheses"]
-                    return [parsed]
-                else:
-                    logger.warning(
-                        f"OpenAI-compatible API request failed ({resp.status_code}): {resp.text}. Using fallback."
-                    )
-        except Exception as e:
-            logger.warning(f"Error communicating with LLM API at {endpoint}: {e}. Using deterministic fallback.")
+            cleaned_json = content.replace("```json", "").replace("```", "").strip()
+            parsed = json.loads(cleaned_json)
+            if isinstance(parsed, list):
+                return parsed
+            elif isinstance(parsed, dict) and "hypotheses" in parsed:
+                return parsed["hypotheses"]
+            return [parsed]
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"LLM returned unparseable hypotheses ({e}). Using fallback.")
 
         # Deterministic fallback if API call fails or no API key is provided
         return [

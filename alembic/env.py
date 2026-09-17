@@ -1,12 +1,15 @@
 import asyncio
 from logging.config import fileConfig
+
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
-from alembic import context
 
+from alembic import context
 from app.config import settings
-from app.storage.postgres import Base, sanitize_asyncpg_url
+from app.database import models  # noqa: F401  (registers tables on Base.metadata)
+from app.database.base import Base
+from app.database.session import sanitize_asyncpg_url
 
 config = context.config
 

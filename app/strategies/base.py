@@ -1,14 +1,15 @@
 """Base Strategy Class."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import Any
+
 from app.core.models import FeatureVector, PortfolioState, TradingSignal
 
 
 class BaseStrategy(ABC):
-    def __init__(self, name: str, symbols: List[str], parameters: Dict[str, Any] | None = None):
+    def __init__(self, name: str = "", symbols: list[str] | None = None, parameters: dict[str, Any] | None = None):
         self.name = name
-        self.symbols = symbols
+        self.symbols = symbols or []
         self.parameters = parameters or {}
 
     @abstractmethod
@@ -16,6 +17,5 @@ class BaseStrategy(ABC):
         self,
         feature_vector: FeatureVector,
         portfolio: PortfolioState,
-    ) -> List[TradingSignal]:
+    ) -> list[TradingSignal]:
         """Evaluate market state and emit signals."""
-        pass

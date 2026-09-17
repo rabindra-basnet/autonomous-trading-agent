@@ -1,18 +1,19 @@
 """Unified feature pipeline aggregating multimodal market, information, and alt data."""
 
-from datetime import datetime, timezone
-from typing import List, Sequence, Dict
+from collections.abc import Sequence
+from datetime import UTC, datetime
+
 from app.core.models import (
     Candle,
-    NewsItem,
-    SocialMetric,
-    MacroIndicator,
-    OnChainMetric,
     FeatureVector,
+    MacroIndicator,
+    NewsItem,
+    OnChainMetric,
+    SocialMetric,
 )
-from app.features.technical import TechnicalIndicators
-from app.features.sentiment import SentimentFeatures
 from app.features.macro_regime import MacroOnChainFeatures
+from app.features.sentiment import SentimentFeatures
+from app.features.technical import TechnicalIndicators
 
 
 class FeaturePipeline:
@@ -28,11 +29,11 @@ class FeaturePipeline:
         macro: Sequence[MacroIndicator] = (),
         onchain: Sequence[OnChainMetric] = (),
     ) -> FeatureVector:
-        now = candles[-1].timestamp if candles else datetime.now(timezone.utc)
-        features: Dict[str, float] = {}
+        now = candles[-1].timestamp if candles else datetime.now(UTC)
+        features: dict[str, float] = {}
 
         # 1. Technical Features
-        recent_candles = list(candles[-self.lookback_candles:]) if candles else []
+        recent_candles = list(candles[-self.lookback_candles :]) if candles else []
         tech_feats = TechnicalIndicators.extract_features(recent_candles)
         features.update(tech_feats)
 
