@@ -1,0 +1,35 @@
+# Environment and Credentials
+.env
+.env.local
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Data storage & logs
+data/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.log
+
+# Pytest / Test Cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,21 @@
+active_strategies:
+  - name: "momentum_trend"
+    enabled: true
+    symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    parameters:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+      rsi_period: 14
+      rsi_oversold: 35.0
+      rsi_overbought: 65.0
+
+  - name: "sentiment_momentum"
+    enabled: true
+    symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    parameters:
+      momentum_weight: 0.50
+      sentiment_weight: 0.35
+      social_velocity_weight: 0.15
+      min_sentiment_threshold: 0.20
+      macro_risk_off_filter: true

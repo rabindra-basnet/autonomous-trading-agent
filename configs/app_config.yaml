@@ -1,0 +1,24 @@
+app:
+  name: "AutoQuant-AI"
+  environment: "development"
+  log_level: "INFO"
+  base_currency: "USDT"
+  symbols:
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "SOL/USDT"
+  timeframe: "1h"
+
+storage:
+  duckdb_path: "data/trading_agent.duckdb"
+  parquet_dir: "data/lake"
+  registry_db_path: "data/registry.json"
+
+event_bus:
+  max_queue_size: 10000
+  worker_threads: 4
+
+features:
+  sentiment_lookback_hours: 24
+  technical_lookback_candles: 100
+  orderbook_depth: 20
